@@ -4,7 +4,8 @@ from functools import partial
 import torch
 from torch import nn, Tensor
 
-from utils.misc import pad, round_filters, round_repeats, StochasticDepth
+
+from util.misc import pad, round_filters, round_repeats, StochasticDepth
 
 
 class SqueezeExcitation(torch.nn.Module):
@@ -170,6 +171,8 @@ class EfficientNet(nn.Module):
 
         x = self.classifier(x)
         return x
+
+
 
 
 def efficientnet_b0(**kwargs) -> EfficientNet:
