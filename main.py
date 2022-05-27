@@ -23,6 +23,7 @@ from models import (
 
 from loss import CrossEntropyLoss, PolyLoss
 from scheduler import StepLR
+from optim import RMSprop
 
 
 def get_args_parser():
@@ -213,7 +214,7 @@ def load_data(traindir, valdir, args):
 
     auto_augment_policy = getattr(args, "auto_augment", None)
     random_erase_prob = getattr(args, "random_erase", 0.0)
-    dataset = torchvision.datasets.ImageFolder(
+    dataset = utils.ImageFolder(
         traindir,
         presets.ClassificationPresetTrain(
             crop_size=train_crop_size,
@@ -283,7 +284,7 @@ def main(args):
     criterion = CrossEntropyLoss()
     parameters = utils.add_weight_decay(model, args.weight_decay)
 
-    optimizer = torch.optim.RMSprop(
+    optimizer = RMSprop(
         parameters, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay, eps=0.0316, alpha=0.9
     )
     scaler = torch.cuda.amp.GradScaler() if args.amp else None
