@@ -9,7 +9,6 @@ import torch.utils.data
 import torchvision
 from torchvision.transforms.functional import InterpolationMode
 
-import utils
 from models import (
     efficientnet_b0,
     efficientnet_b1,
@@ -232,7 +231,7 @@ def load_data(traindir, valdir, args):
         crop_size=val_crop_size, resize_size=val_resize_size, interpolation=interpolation
     )
 
-    dataset_test = torchvision.datasets.ImageFolder(
+    dataset_test = utils.ImageFolder(
         valdir,
         preprocessing,
     )
