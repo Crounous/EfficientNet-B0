@@ -1,5 +1,4 @@
-import torch
-import torch.nn as nn
+from torch import Tensor, nn
 
 
 class CrossEntropyLoss(nn.Module):
@@ -12,7 +11,7 @@ class CrossEntropyLoss(nn.Module):
         self.confidence = 1. - smoothing
         self.softmax = nn.LogSoftmax(dim=-1)
 
-    def forward(self, x: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Tensor, target: Tensor) -> Tensor:
         probs = self.softmax(x)
         smooth_loss = -probs.mean(dim=-1)
         nll_loss = -probs.gather(dim=-1, index=target.unsqueeze(1))
