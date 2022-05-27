@@ -6,6 +6,7 @@ from torch.utils import data
 class ImageFolder(data.Dataset):
 
     def __init__(self, root, transform=None):
+
         self.transform = transform
         self.classes, self.class_to_idx = self.find_classes(root)
         self.samples = self.make_dataset(root, self.class_to_idx)
@@ -20,13 +21,14 @@ class ImageFolder(data.Dataset):
         return image, label
 
     def __len__(self):
+
         return len(self.samples)
 
     @staticmethod
     def load_image(path):
-        with open(path, "rb") as f:
+        with open(path, 'rb') as f:
             image = Image.open(f)
-            image = image.convert("RGB")
+            image = image.convert('RGB')
 
         return image
 
@@ -51,7 +53,7 @@ class ImageFolder(data.Dataset):
                 for file_name in sorted(file_names):
                     path = os.path.join(root, file_name)
                     base, ext = os.path.splitext(path)
-                    if ext.lower() in [".jpg", "jpeg", ".png"]:
+                    if ext.lower() in [".jpg", ".jpeg", ".png"]:
                         item = path, class_index
                         instances.append(item)
 
