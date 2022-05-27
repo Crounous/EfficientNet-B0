@@ -6,7 +6,6 @@ from collections import OrderedDict
 import presets
 import torch
 import torch.utils.data
-import torchvision
 from torchvision.transforms.functional import InterpolationMode
 
 from models import (
@@ -19,7 +18,7 @@ from models import (
     efficientnet_b6,
     efficientnet_b7,
 )
-
+import utils
 from loss import CrossEntropyLoss, PolyLoss
 from scheduler import StepLR
 from optim import RMSprop
