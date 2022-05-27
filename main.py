@@ -27,7 +27,7 @@ from optim import RMSprop
 def get_args_parser():
     import argparse
 
-    parser = argparse.ArgumentParser(description="PyTorch Classification Training")
+    parser = argparse.ArgumentParser(description="PyTorch EfficientNet Training")
 
     parser.add_argument("--data-path", default="../../Projects/Datasets/IMAGENET/", type=str, help="dataset path")
 

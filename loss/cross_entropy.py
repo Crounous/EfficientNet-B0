@@ -1,14 +1,21 @@
-from torch import nn, Tensor
-import torch.nn.functional as F
+import torch
+import torch.nn as nn
 
 
 class CrossEntropyLoss(nn.Module):
-    """ [https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html] """
+    """ NLL loss with label smoothing """
 
-    def __init__(self, reduction='mean', label_smoothing=0.0) -> None:
+    def __init__(self, smoothing: float = 0.1):
         super().__init__()
-        self.label_smoothing = label_smoothing
-        self.reduction = reduction
+        assert smoothing < 1.0
+        self.smoothing = smoothing
+        self.confidence = 1. - smoothing
+        self.softmax = nn.LogSoftmax(dim=-1)
 
-    def forward(self, prediction: Tensor, target: Tensor) -> Tensor:
-        return F.cross_entropy(prediction, target, reduction=self.reduction, label_smoothing=self.label_smoothing)
+    def forward(self, x: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        probs = self.softmax(x)
+        smooth_loss = -probs.mean(dim=-1)
+        nll_loss = -probs.gather(dim=-1, index=target.unsqueeze(1))
+        nll_loss = nll_loss.squeeze(1)
+        loss = self.confidence * nll_loss + self.smoothing * smooth_loss
+        return loss.mean()

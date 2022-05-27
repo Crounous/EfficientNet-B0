@@ -34,10 +34,15 @@ class ImageFolder(data.Dataset):
 
     @staticmethod
     def find_classes(directory):
-        class_names = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
-        class_to_idx = {cls_name: idx for idx, cls_name in enumerate(class_names)}
+        try:
+            class_names = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
+            class_to_idx = {cls_name: idx for idx, cls_name in enumerate(class_names)}
 
-        return class_names, class_to_idx
+            return class_names, class_to_idx
+
+        except FileNotFoundError:
+            print(f"[ERROR] No such file or directory: '{directory}'")
+            exit()
 
     @staticmethod
     def make_dataset(directory, class_to_idx=None):
