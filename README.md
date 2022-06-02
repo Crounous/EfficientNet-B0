@@ -2,7 +2,7 @@
 
 **Arxiv**: https://arxiv.org/abs/1905.11946
 
-After 450 epochs MobileNetV3L reaches **Acc@1** 76.656 **Acc@5** 93.136 of validation accuracy
+After 450 epochs EfficientNet-b0 reaches **Acc@1** 76.656 **Acc@5** 93.136 of validation accuracy
 
 ### Updates
 
@@ -58,7 +58,7 @@ The training config taken from [timm's model training config](https://github.com
 
 
 ### Evaluation
-To validate the **Acc@1** 76.656 **Acc@5** 93.136 run the following command:
+To validate the **Acc@1** 76.656 **Acc@5** 93.136(EfficientNet-b0) run the following command:
 ```
 torchrun --nproc_per_node=$num_gpu main.py --epochs 450 --batch-size 320 --model-ema --lr 0.048 --lr-warmup-init 1e-6 --weight-decay 1e-5 --model-ema-decay 0.9999 --interpolation bicubic --random-erase 0.2 --resume weights/last.ckpt --test-only
 ```
