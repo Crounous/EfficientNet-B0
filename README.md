@@ -2,13 +2,12 @@
 
 **Arxiv**: https://arxiv.org/abs/1905.11946
 
-<!-- After 300 epochs MobileNetV3L reaches **Acc@1**: 74.3025 **Acc@5**: 91.8342
- -->
+After 450 epochs MobileNetV3L reaches **Acc@1** 76.656 **Acc@5** 93.136 of validation accuracy
+
 ### Updates
 
-<!-- * 2022.05.13:
-    - Weights are uploaded to the `weights` folder. `last.ckpt` is checkpoint (88.3MB) (includes model, model_ema, optimizer, ...) and last.pth is model with
-      Exponential Moving Average (11.2MB) and converted to `half()` tensor. -->
+* 2022.06.02:
+    - Weights are uploaded to the `weights` folder. `last.ckpt` is checkpoint (81.4MB) (includes model, model_ema, optimizer, ...)
 
 ### Dataset
 
