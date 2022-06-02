@@ -1,11 +1,11 @@
 import datetime
 import os
 import time
-from collections import OrderedDict
 
-import presets
 import torch
 import torch.utils.data
+
+from torchvision.transforms import autoaugment, transforms
 from torchvision.transforms.functional import InterpolationMode
 
 from models import (
@@ -33,16 +33,16 @@ def get_args_parser():
 
     parser.add_argument("--device", default="cuda", type=str, help="device (Use cuda or cpu Default: cuda)")
     parser.add_argument("--batch-size", default=64, type=int, help="images per GPU, total @num_gpu x batch_size")
-    parser.add_argument("--epochs", default=90, type=int, help="number of total epochs to run")
+    parser.add_argument("--epochs", default=455, type=int, help="number of total epochs to run")
     parser.add_argument("--workers", default=16, type=int, help="number of data loading workers (default: 16)")
 
     # Optimizer params
-    parser.add_argument("--lr", default=0.1, type=float, help="initial learning rate")
+    parser.add_argument("--lr", default=0.048, type=float, help="initial learning rate")
     parser.add_argument("--momentum", default=0.9, type=float, help="momentum")
-    parser.add_argument("--weight-decay", default=1e-4, type=float, help="weight decay (default: 1e-4)")
+    parser.add_argument("--weight-decay", default=1e-5, type=float, help="weight decay (default: 1e-4)")
 
     # Learning rate scheduler
-    parser.add_argument('--lr-warmup-init', type=float, default=0.0001, help='warmup learning rate (default: 0.0001)')
+    parser.add_argument('--lr-warmup-init', type=float, default=1e-6, help='warmup learning rate (default: 0.0001)')
     parser.add_argument("--lr-warmup-epochs", default=3, type=int, help="the number of epochs to warmup (default: 0)")
     parser.add_argument("--lr-decay-epochs", default=2.4, type=float, help="decrease lr every step-size epochs")
     parser.add_argument("--lr-decay-rate", default=0.97, type=float, help="decrease lr by a factor of lr-gamma")
@@ -54,19 +54,18 @@ def get_args_parser():
     parser.add_argument("--sync-bn", help="Use sync batch norm", action="store_true")
     parser.add_argument("--test-only", help="Only test the model", action="store_true")
 
-    parser.add_argument("--auto-augment", default=None, type=str, help="auto augment policy (default: None)")
-    parser.add_argument("--random-erase", default=0.0, type=float, help="random erasing probability (default: 0.0)")
+    parser.add_argument("--random-erase", default=0.2, type=float, help="random erasing probability (default: 0.0)")
 
     # Mixed precision training parameters
     parser.add_argument("--amp", action="store_true", help="Use torch.cuda.amp for mixed precision training")
 
     # Distributed training parameters
     parser.add_argument("--world-size", default=1, type=int, help="number of distributed processes")
-    parser.add_argument("--dist-url", default="env://", type=str, help="url used to set up distributed training")
+    parser.add_argument("--local-rank", default=0, type=int, help="number of distributed processes")
 
     # Exponential Moving Average
     parser.add_argument("--model-ema", action="store_true", help="Exponential Moving Average")
-    parser.add_argument("--model-ema-decay", type=float, default=0.99998, help="Exponential Moving Average decay")
+    parser.add_argument("--model-ema-decay", type=float, default=0.9999, help="Exponential Moving Average decay")
 
     # Data processing
     parser.add_argument("--interpolation", default="bilinear", type=str, help="the interpolation method")
@@ -77,10 +76,10 @@ def get_args_parser():
     return parser
 
 
-def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, args, model_ema=None, scaler=None):
+def train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args, model_ema=None, scaler=None):
     model.train()
     end = time.time()
-    last_idx = len(data_loader) - 1
+    last_idx = len(train_loader) - 1
 
     time_logger = utils.AverageMeter()  # img/s
     loss_logger = utils.AverageMeter()  # loss
@@ -88,7 +87,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, arg
     top5_logger = utils.AverageMeter()  # top5 accuracy
 
     header = f"Epoch: [{epoch}]"
-    for batch_idx, (image, target) in enumerate(data_loader):
+    for batch_idx, (image, target) in enumerate(train_loader):
         last_batch = batch_idx == last_idx
         batch_size = image.shape[0]
         time_logger.update(time.time() - end)
@@ -129,23 +128,22 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, arg
             top1_logger.update(acc1.item(), n=batch_size)
             top5_logger.update(acc5.item(), n=batch_size)
 
-            if args.rank == 0:
-                print(
-                    'Train: {} [{:>4d}/{} ({:>3.0f}%)]  '
-                    'Loss: {loss.val:>6.4f} ({loss.avg:>6.4f})  '
-                    'Acc@1: {acc1.val:>6.4f} ({acc1.avg:>6.4f}) '
-                    'Acc@5: {acc5.val:>6.4f} ({acc5.avg:>6.4f}) '
-                    'LR: {lr:.3e}  '
-                    'Data: {data_time.val:.3f} ({data_time.avg:.3f})'.format(epoch, batch_idx, len(data_loader),
-                                                                             100. * batch_idx / last_idx,
-                                                                             loss=loss_logger,
-                                                                             acc1=top1_logger,
-                                                                             acc5=top5_logger,
-                                                                             lr=lr,
-                                                                             data_time=time_logger))
+            if args.local_rank == 0:
+                print('Train: {} [{:>4d}/{} ({:>3.0f}%)]  '
+                      'Loss: {loss.val:>6.4f} ({loss.avg:>6.4f})  '
+                      'Acc@1: {acc1.val:>6.4f} ({acc1.avg:>6.4f}) '
+                      'Acc@5: {acc5.val:>6.4f} ({acc5.avg:>6.4f}) '
+                      'LR: {lr:.3e}  '
+                      'Data: {data_time.val:.3f} ({data_time.avg:.3f})'.format(epoch, batch_idx, len(train_loader),
+                                                                               100. * batch_idx / last_idx,
+                                                                               loss=loss_logger,
+                                                                               acc1=top1_logger,
+                                                                               acc5=top5_logger,
+                                                                               lr=lr,
+                                                                               data_time=time_logger))
 
 
-def evaluate(model, criterion, data_loader, device, log_suffix=""):
+def evaluate(model, criterion, test_loader, device, log_suffix=""):
     time_logger = utils.AverageMeter()  # img/s
     loss_logger = utils.AverageMeter()  # loss
     top1_logger = utils.AverageMeter()  # top1 accuracy
@@ -154,11 +152,11 @@ def evaluate(model, criterion, data_loader, device, log_suffix=""):
     model.eval()
 
     end = time.time()
-    last_idx = len(data_loader) - 1
+    last_idx = len(test_loader) - 1
 
     header = f"Test: {log_suffix}"
     with torch.inference_mode():
-        for batch_idx, (image, target) in enumerate(data_loader):
+        for batch_idx, (image, target) in enumerate(test_loader):
             last_batch = batch_idx == last_idx
             batch_size = image.shape[0]
             image = image.to(device, non_blocking=True)
@@ -183,7 +181,7 @@ def evaluate(model, criterion, data_loader, device, log_suffix=""):
 
             time_logger.update(time.time() - end)
             end = time.time()
-            if args.rank == 0 and (last_batch or batch_idx % args.print_freq == 0):
+            if args.local_rank == 0 and (last_batch or batch_idx % args.print_freq == 0):
                 print('{0}: [{1:>4d}/{2}]  '
                       'Time: {batch_time.val:>4.3f} ({batch_time.avg:>4.3f})  '
                       'Loss: {loss.val:>4.4f} ({loss.avg:>6.4f})  '
@@ -194,14 +192,11 @@ def evaluate(model, criterion, data_loader, device, log_suffix=""):
                                                                           top1=top1_logger,
                                                                           top5=top5_logger))
 
-    # metrics = OrderedDict([('loss', loss_logger.avg), ('top1', top1_logger.avg), ('top5', top5_logger.avg)])
-    # return metrics
-
     print(f"{header} Loss: {loss_logger.avg:.3f} Acc@1 {top1_logger.avg:.3f} Acc@5 {top5_logger.avg:.3f}")
     return loss_logger.avg, top1_logger.avg, top5_logger.avg
 
 
-def load_data(traindir, valdir, args):
+def load_data(train_dir, val_dir, args):
     # Data loading code
     print("Loading data")
     val_resize_size, val_crop_size, train_crop_size = args.val_resize_size, args.val_crop_size, args.train_crop_size
@@ -210,32 +205,33 @@ def load_data(traindir, valdir, args):
     print("Loading training data")
     st = time.time()
 
-    auto_augment_policy = getattr(args, "auto_augment", None)
-    random_erase_prob = getattr(args, "random_erase", 0.0)
     dataset = utils.ImageFolder(
-        traindir,
-        presets.ClassificationPresetTrain(
-            crop_size=train_crop_size,
-            interpolation=interpolation,
-            auto_augment_policy=auto_augment_policy,
-            random_erase_prob=random_erase_prob,
-        ),
+        train_dir,
+        transform=transforms.Compose([
+            transforms.RandomResizedCrop(train_crop_size, interpolation=interpolation),
+            transforms.RandomHorizontalFlip(p=0.5),
+            autoaugment.AutoAugment(policy=autoaugment.AutoAugmentPolicy.IMAGENET, interpolation=interpolation),
+            transforms.PILToTensor(),
+            transforms.ConvertImageDtype(torch.float),
+            transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            transforms.RandomErasing(p=args.random_erase),
+        ]),
     )
-
     print("Took", time.time() - st)
 
     print("Loading validation data")
-
-    preprocessing = presets.ClassificationPresetEval(
-        crop_size=val_crop_size, resize_size=val_resize_size, interpolation=interpolation
-    )
-
     dataset_test = utils.ImageFolder(
-        valdir,
-        preprocessing,
+        val_dir,
+        transform=transforms.Compose([
+            transforms.Resize(val_resize_size, interpolation=interpolation),
+            transforms.CenterCrop(val_crop_size),
+            transforms.PILToTensor(),
+            transforms.ConvertImageDtype(torch.float),
+            transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ]),
     )
-
     print("Creating data loaders")
+
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(dataset)
         test_sampler = torch.utils.data.distributed.DistributedSampler(dataset_test, shuffle=False)
@@ -253,23 +249,24 @@ def main(args):
     print(args)
 
     device = torch.device(args.device)
-
     torch.backends.cudnn.benchmark = True
 
     train_dir = os.path.join(args.data_path, "train")
     val_dir = os.path.join(args.data_path, "val")
-    dataset, dataset_test, train_sampler, test_sampler = load_data(train_dir, val_dir, args)
+    train_dataset, test_dataset, train_sampler, test_sampler = load_data(train_dir, val_dir, args)
 
-    data_loader = torch.utils.data.DataLoader(
-        dataset,
-        batch_size=args.batch_size,
-        sampler=train_sampler,
-        num_workers=args.workers,
-        pin_memory=True
-    )
-    data_loader_test = torch.utils.data.DataLoader(
-        dataset_test, batch_size=args.batch_size, sampler=test_sampler, num_workers=args.workers, pin_memory=True
-    )
+    train_loader = torch.utils.data.DataLoader(train_dataset,
+                                               batch_size=args.batch_size,
+                                               sampler=train_sampler,
+                                               num_workers=args.workers,
+                                               pin_memory=True,
+                                               )
+    test_loader = torch.utils.data.DataLoader(test_dataset,
+                                              batch_size=args.batch_size,
+                                              sampler=test_sampler,
+                                              num_workers=args.workers,
+                                              pin_memory=True,
+                                              )
 
     print("Creating model")
 
@@ -291,11 +288,12 @@ def main(args):
                           decay_epochs=args.lr_decay_epochs,
                           decay_rate=args.lr_decay_rate,
                           warmup_epochs=args.lr_warmup_epochs,
-                          warmup_lr_init=args.lr_warmup_init)
+                          warmup_lr_init=args.lr_warmup_init,
+                          )
 
     model_without_ddp = model
     if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank])
         model_without_ddp = model.module
 
     model_ema = None
@@ -319,9 +317,9 @@ def main(args):
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
         if model_ema:
-            evaluate(model_ema, criterion, data_loader_test, device=device, log_suffix="EMA")
+            evaluate(model_ema.model, criterion, test_loader, device=device, log_suffix="EMA")
         else:
-            evaluate(model, criterion, data_loader_test, device=device)
+            evaluate(model, criterion, test_loader, device=device)
         return
 
     print("Start training")
@@ -330,11 +328,11 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
-        train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, args, model_ema, scaler)
+        train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args, model_ema, scaler)
         lr_scheduler.step(epoch)
 
-        evaluate(model, criterion, data_loader_test, device=device)
-        loss, acc1, acc5 = evaluate(model_ema.model, criterion, data_loader_test, device=device, log_suffix="EMA")
+        evaluate(model, criterion, test_loader, device=device)
+        loss, acc1, acc5 = evaluate(model_ema.model, criterion, test_loader, device=device, log_suffix="EMA")
 
         checkpoint = {
             "model": model_without_ddp.state_dict(),

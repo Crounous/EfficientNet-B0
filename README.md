@@ -47,8 +47,10 @@ bash main.sh
 `main.sh`:
 
 ```
-torchrun --nproc_per_node=$num_gpu main.py --epochs 450 --batch-size 320 --model-ema --lr 0.048 --lr-warmup-init 1e-6 --weight-decay 1e-5 --model-ema-decay 0.9999 --interpolation bicubic --auto-augment imagenet --random-erase 0.2
+torchrun --nproc_per_node=$num_gpu main.py --epochs 450 --batch-size 320 --model-ema --lr 0.048 --lr-warmup-init 1e-6 --weight-decay 1e-5 --model-ema-decay 0.9999 --interpolation bicubic --random-erase 0.2
 ```
+
+AutoAugment is IMAGENET by default.
 
 To resume the training add `--resume @path_to_checkpoint` to `main.sh`, e.g: `--resume weights/last.ckpt`
 
@@ -56,3 +58,7 @@ The training config taken from [timm's model training config](https://github.com
 
 
 ### Evaluation
+To validate the **Acc@1** 76.656 **Acc@5** 93.136 run the following command:
+```
+torchrun --nproc_per_node=$num_gpu main.py --epochs 450 --batch-size 320 --model-ema --lr 0.048 --lr-warmup-init 1e-6 --weight-decay 1e-5 --model-ema-decay 0.9999 --interpolation bicubic --random-erase 0.2 --resume weights/last.ckpt --test-only
+```

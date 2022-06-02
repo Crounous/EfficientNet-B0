@@ -3,6 +3,7 @@ import copy
 
 import torch
 from torch import nn, Tensor
+import torch.distributed as dist
 
 
 def pad(kernel_size, dilation=1) -> int:
@@ -27,6 +28,13 @@ def round_filters(filters: int, width_mult: float) -> int:
     if width_mult == 1.0:
         return filters
     return int(_make_divisible(filters * width_mult))
+
+
+def reduce_tensor(tensor, n):
+    rt = tensor.clone()
+    dist.all_reduce(rt, op=dist.ReduceOp.SUM)
+    rt /= n
+    return rt
 
 
 def add_weight_decay(model, weight_decay=1e-5):
