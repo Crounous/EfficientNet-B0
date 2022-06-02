@@ -52,7 +52,7 @@ torchrun --nproc_per_node=$num_gpu main.py --epochs 450 --batch-size 320 --model
 
 To resume the training add `--resume @path_to_checkpoint` to `main.sh`, e.g: `--resume weights/last.ckpt`
 
-The training config taken from [official torchvision models' training config](https://github.com/rwightman/pytorch-image-models)
+The training config taken from [timm's model training config](https://github.com/rwightman/pytorch-image-models)
 
 
 ### Evaluation
