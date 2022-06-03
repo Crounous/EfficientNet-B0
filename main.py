@@ -11,13 +11,20 @@ from torchvision.transforms.functional import InterpolationMode
 
 from efficientnet.models import (
     efficientnet_b0,
+    efficientnet_b1,
+    efficientnet_b2,
+    efficientnet_b3,
+    efficientnet_b4,
+    efficientnet_b5,
+    efficientnet_b6,
+    efficientnet_b7,
 )
 from efficientnet import utils
 from efficientnet.loss import CrossEntropyLoss
 from efficientnet.scheduler import StepLR
 from efficientnet.optim import RMSprop
 from efficientnet.utils import RandAugment
-
+import efficientnet
 
 def get_args_parser():
     import argparse
@@ -238,7 +245,6 @@ def load_data(train_dir, val_dir, args):
 
 def main(args):
     os.makedirs('weights', exist_ok=True)
-
     utils.init_distributed_mode(args)
     print(args)
 
