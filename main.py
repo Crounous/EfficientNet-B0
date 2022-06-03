@@ -304,7 +304,7 @@ def main(args):
         checkpoint = torch.load(args.resume, map_location="cpu")
         model.module.load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
-        scheduler.load_state_dict(checkpoint["scheduler"])
+        scheduler.load_state_dict(checkpoint["lr_scheduler"])
         args.start_epoch = checkpoint["epoch"] + 1
 
         if model_ema:
