@@ -1,27 +1,22 @@
-import datetime
 import os
+import copy
 import time
+import datetime
 
 import torch
 import torch.utils.data
 
-from torchvision.transforms import autoaugment, transforms
+from torchvision.transforms import transforms
 from torchvision.transforms.functional import InterpolationMode
 
-from models import (
+from efficientnet.models import (
     efficientnet_b0,
-    efficientnet_b1,
-    efficientnet_b2,
-    efficientnet_b3,
-    efficientnet_b4,
-    efficientnet_b5,
-    efficientnet_b6,
-    efficientnet_b7,
 )
-import utils
-from loss import CrossEntropyLoss, PolyLoss
-from scheduler import StepLR
-from optim import RMSprop
+from efficientnet import utils
+from efficientnet.loss import CrossEntropyLoss
+from efficientnet.scheduler import StepLR
+from efficientnet.optim import RMSprop
+from efficientnet.utils import RandAugment
 
 
 def get_args_parser():
@@ -52,9 +47,7 @@ def get_args_parser():
     parser.add_argument("--start-epoch", default=0, type=int, metavar="N", help="start epoch")
 
     parser.add_argument("--sync-bn", help="Use sync batch norm", action="store_true")
-    parser.add_argument("--test-only", help="Only test the model", action="store_true")
-
-    parser.add_argument("--random-erase", default=0.2, type=float, help="random erasing probability (default: 0.0)")
+    parser.add_argument("--test", action='store_true', help='model testing')
 
     # Mixed precision training parameters
     parser.add_argument("--amp", action="store_true", help="Use torch.cuda.amp for mixed precision training")
@@ -68,6 +61,7 @@ def get_args_parser():
     parser.add_argument("--model-ema-decay", type=float, default=0.9999, help="Exponential Moving Average decay")
 
     # Data processing
+    parser.add_argument("--random-erase", default=0.2, type=float, help="random erasing probability")
     parser.add_argument("--interpolation", default="bilinear", type=str, help="the interpolation method")
     parser.add_argument("--val-resize-size", default=256, type=int, help="the resize size used for validation")
     parser.add_argument("--val-crop-size", default=224, type=int, help="the central crop size used for validation")
@@ -115,7 +109,7 @@ def train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, ar
             lrl = [param_group['lr'] for param_group in optimizer.param_groups]
             lr = sum(lrl) / len(lrl)
 
-            acc1, acc5 = utils.metrics.accuracy(output, target, topk=(1, 5))
+            acc1, acc5 = utils.accuracy(output, target, topk=(1, 5))
 
             if args.distributed:
                 reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
@@ -143,7 +137,7 @@ def train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, ar
                                                                                data_time=time_logger))
 
 
-def evaluate(model, criterion, test_loader, device, log_suffix=""):
+def validate(model, criterion, test_loader, device, args, log_suffix=""):
     time_logger = utils.AverageMeter()  # img/s
     loss_logger = utils.AverageMeter()  # loss
     top1_logger = utils.AverageMeter()  # top1 accuracy
@@ -164,7 +158,7 @@ def evaluate(model, criterion, test_loader, device, log_suffix=""):
             output = model(image)
 
             loss = criterion(output, target)
-            acc1, acc5 = utils.metrics.accuracy(output, target, topk=(1, 5))
+            acc1, acc5 = utils.accuracy(output, target, topk=(1, 5))
 
             if args.distributed:
                 loss = utils.reduce_tensor(loss.data, args.world_size)
@@ -210,7 +204,7 @@ def load_data(train_dir, val_dir, args):
         transform=transforms.Compose([
             transforms.RandomResizedCrop(train_crop_size, interpolation=interpolation),
             transforms.RandomHorizontalFlip(p=0.5),
-            autoaugment.AutoAugment(policy=autoaugment.AutoAugmentPolicy.IMAGENET, interpolation=interpolation),
+            RandAugment(magnitude=9, magnitude_std=0.5, num_operations=2),
             transforms.PILToTensor(),
             transforms.ConvertImageDtype(torch.float),
             transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
@@ -245,7 +239,7 @@ def load_data(train_dir, val_dir, args):
 def main(args):
     os.makedirs('weights', exist_ok=True)
 
-    utils.distributed.init_distributed_mode(args)
+    utils.init_distributed_mode(args)
     print(args)
 
     device = torch.device(args.device)
@@ -269,7 +263,6 @@ def main(args):
                                               )
 
     print("Creating model")
-
     model = efficientnet_b0()
     model.to(device)
 
@@ -278,83 +271,89 @@ def main(args):
 
     criterion = CrossEntropyLoss()
     parameters = utils.add_weight_decay(model, args.weight_decay)
-
-    optimizer = RMSprop(
-        parameters, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay, eps=0.0316, alpha=0.9
-    )
+    optimizer = RMSprop(parameters,
+                        lr=args.lr,
+                        momentum=args.momentum,
+                        weight_decay=args.weight_decay,
+                        eps=0.0316,
+                        alpha=0.9,
+                        )
     scaler = torch.cuda.amp.GradScaler() if args.amp else None
-
-    lr_scheduler = StepLR(optimizer,
-                          decay_epochs=args.lr_decay_epochs,
-                          decay_rate=args.lr_decay_rate,
-                          warmup_epochs=args.lr_warmup_epochs,
-                          warmup_lr_init=args.lr_warmup_init,
-                          )
-
-    model_without_ddp = model
-    if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank])
-        model_without_ddp = model.module
-
+    scheduler = StepLR(optimizer,
+                       decay_epochs=args.lr_decay_epochs,
+                       decay_rate=args.lr_decay_rate,
+                       warmup_epochs=args.lr_warmup_epochs,
+                       warmup_lr_init=args.lr_warmup_init,
+                       )
     model_ema = None
     if args.model_ema:
-        model_ema = utils.EMA(model_without_ddp, decay=1.0 - args.model_ema_decay)
+        model_ema = utils.EMA(model, decay=1.0 - args.model_ema_decay)
+
+    if args.distributed:
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank])
+    else:
+        model = torch.nn.DataParallel(model)
 
     if args.resume:
         checkpoint = torch.load(args.resume, map_location="cpu")
-        model_without_ddp.load_state_dict(checkpoint["model"])
-        if not args.test_only:
-            optimizer.load_state_dict(checkpoint["optimizer"])
-            lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+        model.module.load_state_dict(checkpoint["model"])
+        optimizer.load_state_dict(checkpoint["optimizer"])
+        scheduler.load_state_dict(checkpoint["scheduler"])
         args.start_epoch = checkpoint["epoch"] + 1
+
         if model_ema:
-            model_ema.load_state_dict(checkpoint["model_ema"])
+            model_ema.model.load_state_dict(checkpoint["model_ema"])
         if scaler:
             scaler.load_state_dict(checkpoint["scaler"])
 
-    if args.test_only:
-        # We disable the cudnn benchmarking because it can noticeably affect the accuracy
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
-        if model_ema:
-            evaluate(model_ema.model, criterion, test_loader, device=device, log_suffix="EMA")
-        else:
-            evaluate(model, criterion, test_loader, device=device)
-        return
+    if args.test:
+        print("Start testing")
+        start_time = time.time()
+        model_ema = torch.load('weights/last.pth', 'cuda')['model'].float()
+        _, acc1, acc5 = validate(model_ema, criterion, test_loader, device=device, args=args, log_suffix='EMA')
+        total_time = time.time() - start_time
+        total_time_str = str(datetime.timedelta(seconds=int(total_time)))
+        print(f"Testing time: {total_time_str}")
+    else:
+        print("Start training")
+        start_time = time.time()
+        best = 0
+        for epoch in range(args.start_epoch, args.epochs):
+            if args.distributed:
+                train_sampler.set_epoch(epoch)
+            train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args, model_ema, scaler)
+            scheduler.step(epoch)
 
-    print("Start training")
-    start_time = time.time()
-    best = 0
-    for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            train_sampler.set_epoch(epoch)
-        train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args, model_ema, scaler)
-        lr_scheduler.step(epoch)
+            validate(model, criterion, test_loader, device=device, args=args)
+            loss, acc1, acc5 = validate(model_ema.model, criterion, test_loader, device=device, args=args,
+                                        log_suffix="EMA")
 
-        evaluate(model, criterion, test_loader, device=device)
-        loss, acc1, acc5 = evaluate(model_ema.model, criterion, test_loader, device=device, log_suffix="EMA")
+            checkpoint = {
+                "model": model.module.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "lr_scheduler": scheduler.state_dict(),
+                "epoch": epoch,
+                "args": args,
+            }
+            if model_ema:
+                checkpoint["model_ema"] = model_ema.model.state_dict()
+            if scaler:
+                checkpoint["scaler"] = scaler.state_dict()
 
-        checkpoint = {
-            "model": model_without_ddp.state_dict(),
-            "optimizer": optimizer.state_dict(),
-            "lr_scheduler": lr_scheduler.state_dict(),
-            "epoch": epoch,
-            "args": args,
-        }
-        if model_ema:
-            checkpoint["model_ema"] = model_ema.state_dict()
-        if scaler:
-            checkpoint["scaler"] = scaler.state_dict()
+            state_ema = {
+                'model': copy.deepcopy(model_ema.model).half()
+            }
 
-        torch.save(checkpoint, 'weights/last.ckpt')
+            torch.save(checkpoint, 'weights/last.ckpt')
+            torch.save(state_ema, 'weights/last.pth')
+            if acc1 > best:
+                torch.save(checkpoint, 'weights/best.ckpt')
+                torch.save(state_ema, 'weights/best.pth')
+            best = max(acc1, best)
 
-        if best < acc1:
-            torch.save(checkpoint, "weights/best.ckpt")
-        best = max(best, acc1)
-
-    total_time = time.time() - start_time
-    total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print(f"Training time {total_time_str}")
+        total_time = time.time() - start_time
+        total_time_str = str(datetime.timedelta(seconds=int(total_time)))
+        print(f"Training time: {total_time_str}")
 
 
 if __name__ == "__main__":
