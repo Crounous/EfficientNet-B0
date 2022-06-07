@@ -2,16 +2,16 @@
 
 **Arxiv**: https://arxiv.org/abs/1905.11946
 
-After 450 epochs EfficientNet-b0 reaches **Acc@1** 76.656 **Acc@5** 93.136 of validation accuracy
+After 450 epochs EfficientNet-b0 reaches **Acc@1** 76.666 **Acc@5** 93.166 of validation accuracy
 
 ### Updates
 
 * 2022.06.03:
-    - Training EfficientNet-b0 with RandomAugment augmentation (ongoing...).
+    - Training EfficientNet-b0 with RandomAugment augmentation. There was not an incease in performance.
     - `RandomAugment` added.
 
 * 2022.06.02:
-    - After 450 epochs, EfficientNet-b0 reaches **Acc@1** 76.656 **Acc@5** 93.136 validation accuracy while using
+    - After 450 epochs, EfficientNet-b0 reaches **Acc@1** 76.666 **Acc@5** 93.166 validation accuracy while using
       AutoAugment augmentation with IMAGENET policy.
     - Weights are uploaded to the `weights` folder. `last.ckpt` is checkpoint (81.4MB) (includes model, model_ema,
       optimizer, ...)
@@ -62,8 +62,12 @@ The training config taken from [timm's model training config](https://github.com
 
 ### Evaluation
 
-To validate the **Acc@1** 76.656 **Acc@5** 93.136(EfficientNet-b0) run the following command:
+To validate the **Acc@1** 76.666 **Acc@5** 93.166 (EfficientNet-b0) run the following command:
 
 ```
-torchrun --nproc_per_node=$num_gpu main.py --interpolation bicubic --resume weights/last.ckpt --test-only
+torchrun --nproc_per_node=$num_gpu main.py --epochs 450 --batch-size 320 --model-ema --lr 0.048 --lr-warmup-init 1e-6 --weight-decay 1e-5 --model-ema-decay 0.9999 --interpolation bicubic --random-erase 0.2 --resume weights/last.ckpt --test
+```
+or
+```
+python main.py --test
 ```
