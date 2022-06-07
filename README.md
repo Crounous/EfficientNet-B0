@@ -65,5 +65,9 @@ The training config taken from [timm's model training config](https://github.com
 To validate the **Acc@1** 76.666 **Acc@5** 93.166 (EfficientNet-b0) run the following command:
 
 ```
-torchrun --nproc_per_node=$num_gpu main.py --epochs 450 --batch-size 320 --model-ema --lr 0.048 --lr-warmup-init 1e-6 --weight-decay 1e-5 --model-ema-decay 0.9999 --interpolation bicubic --random-erase 0.2 --resume weights/last.ckpt --test-only
+torchrun --nproc_per_node=$num_gpu main.py --epochs 450 --batch-size 320 --model-ema --lr 0.048 --lr-warmup-init 1e-6 --weight-decay 1e-5 --model-ema-decay 0.9999 --interpolation bicubic --random-erase 0.2 --resume weights/last.ckpt --test
+```
+or
+```
+python main.py --test
 ```
