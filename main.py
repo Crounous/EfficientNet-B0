@@ -24,7 +24,7 @@ from efficientnet.loss import CrossEntropyLoss
 from efficientnet.scheduler import StepLR
 from efficientnet.optim import RMSprop
 from efficientnet.utils import RandAugment
-import efficientnet
+
 
 def get_args_parser():
     import argparse
@@ -247,7 +247,7 @@ def main(args):
     os.makedirs('weights', exist_ok=True)
     utils.init_distributed_mode(args)
     print(args)
-
+    utils.random_seed(args.local_rank)
     device = torch.device(args.device)
     torch.backends.cudnn.benchmark = True
 

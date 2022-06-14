@@ -7,3 +7,5 @@ from .misc import StochasticDepth, EMA
 
 from .dataset import ImageFolder
 from .augment import RandAugment
+
+from .random import random_seed
