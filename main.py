@@ -35,7 +35,7 @@ def get_args_parser():
 
     parser.add_argument("--device", default="cuda", type=str, help="device (Use cuda or cpu Default: cuda)")
     parser.add_argument("--batch-size", default=64, type=int, help="images per GPU, total @num_gpu x batch_size")
-    parser.add_argument("--epochs", default=455, type=int, help="number of total epochs to run")
+    parser.add_argument("--epochs", default=450, type=int, help="number of total epochs to run")
     parser.add_argument("--workers", default=16, type=int, help="number of data loading workers (default: 16)")
 
     # Optimizer params
