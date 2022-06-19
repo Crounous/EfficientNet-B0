@@ -1,13 +1,14 @@
 ## Implementation of [EfficientNet B0-B7](https://arxiv.org/abs/1905.11946) in PyTorch
 
-**Arxiv**: https://arxiv.org/abs/1905.11946
-
-After 450 epochs EfficientNet-b0 reaches **Acc@1** 76.666 **Acc@5** 93.166 of validation accuracy
+After 450 epochs EfficientNet-b0 reaches **Acc@1** 76.732 **Acc@5** 93.216 of validation accuracy
 
 ### Updates
+* 2022.06.19:
+    - Update weights. EfficientNet-b0 reached **Acc@1** 76.732 **Acc@5** 93.216 of validation accuracy.
+    - EfficientNet-b1 is on the training process...
 
 * 2022.06.03:
-    - Training EfficientNet-b0 with RandomAugment augmentation. There was not an incease in performance.
+    - Training EfficientNet-b0 with RandomAugment augmentation. There was not an increase in performance.
     - `RandomAugment` added.
 
 * 2022.06.02:
