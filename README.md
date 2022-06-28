@@ -1,6 +1,11 @@
 ## Implementation of [EfficientNet B0-B7](https://arxiv.org/abs/1905.11946) in PyTorch
 
-After 450 epochs EfficientNet-b0 reaches **Acc@1** 76.732 **Acc@5** 93.216 of validation accuracy
+
+| Model Name      | Num Params | Acc@1  | Acc@5  | Input size |
+|-----------------|------------|--------|--------|------------|
+| EfficientNet-b0 | 5.2M       | 76.732 | 93.216 | 224x224x3  |
+| EfficientNet-b1 | 7.8M       | 78.688 | 94.304 | 240x240x3  |
+| EfficientNet-b2 | 9.1M       |        |        |            |
 
 ### Updates
 * 2022.06.19:

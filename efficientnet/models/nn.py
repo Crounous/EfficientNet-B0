@@ -229,5 +229,5 @@ def num_params(model):
 
 
 if __name__ == '__main__':
-    b0 = efficientnet_b4()
+    b0 = efficientnet_b0()
     print(num_params(b0))
