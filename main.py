@@ -71,8 +71,8 @@ def get_args_parser():
     parser.add_argument("--random-erase", default=0.2, type=float, help="random erasing probability")
     parser.add_argument("--interpolation", default="bilinear", type=str, help="the interpolation method")
     parser.add_argument("--val-resize-size", default=256, type=int, help="the resize size used for validation")
-    parser.add_argument("--val-crop-size", default=224, type=int, help="the central crop size used for validation")
-    parser.add_argument("--train-crop-size", default=224, type=int, help="the random crop size used for training")
+    parser.add_argument("--val-crop-size", default=240, type=int, help="the central crop size used for validation")
+    parser.add_argument("--train-crop-size", default=240, type=int, help="the random crop size used for training")
 
     return parser
 
@@ -269,7 +269,7 @@ def main(args):
                                               )
 
     print("Creating model")
-    model = efficientnet_b0()
+    model = efficientnet_b1()
     model.to(device)
 
     if args.distributed and args.sync_bn:

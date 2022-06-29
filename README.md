@@ -1,16 +1,16 @@
 ## Implementation of [EfficientNet B0-B7](https://arxiv.org/abs/1905.11946) in PyTorch
 
 
-| Model Name      | Num Params | Acc@1  | Acc@5  | Input size |
-|-----------------|------------|--------|--------|------------|
-| EfficientNet-b0 | 5.2M       | 76.732 | 93.216 | 224x224x3  |
-| EfficientNet-b1 | 7.8M       | 78.688 | 94.304 | 240x240x3  |
-| EfficientNet-b2 | 9.1M       |        |        | 260x260x3  |
-| EfficientNet-b3 | 12.2M      |        |        | 300x300x3  |
-| EfficientNet-b4 | 19.3M      |        |        | 380x380x3  |
-| EfficientNet-b5 | 30.3M      |        |        | 456x456x3  |
-| EfficientNet-b6 | 43M        |        |        | 528x528x3  |
-| EfficientNet-b7 | 66.3M      |        |        | 600x600x3  |
+| Model Name      | Num Params | Acc@1  | Acc@5  | Input size | Weights |
+|-----------------|------------|--------|--------|------------|---------|
+| EfficientNet-b0 | 5.2M       | 76.732 | 93.216 | 224x224x3  | ✗       |
+| EfficientNet-b1 | 7.8M       | 78.700 | 94.372 | 240x240x3  | ✔       |
+| EfficientNet-b2 | 9.1M       |        |        | 260x260x3  | ✗       |
+| EfficientNet-b3 | 12.2M      |        |        | 300x300x3  | ✗       |
+| EfficientNet-b4 | 19.3M      |        |        | 380x380x3  | ✗       |
+| EfficientNet-b5 | 30.3M      |        |        | 456x456x3  | ✗       |
+| EfficientNet-b6 | 43M        |        |        | 528x528x3  | ✗       |
+| EfficientNet-b7 | 66.3M      |        |        | 600x600x3  | ✗       |
 
 
 ### Dataset
