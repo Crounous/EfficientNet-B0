@@ -1,66 +1,52 @@
-## Implementation of [EfficientNet B0-B7](https://arxiv.org/abs/1905.11946) in PyTorch
+## Diabetic Retinopathy Classification Model ##
+This is a simple web application built with Flask that uses a pre-trained EfficientNet-B0 model to classify Diabetic Retinopathy.
 
+# Overview
+The application provides a web interface where users can upload an image. The backend, powered by Flask and PyTorch, processes the image, feeds it into the trained model, and returns the predicted class and confidence score.
 
-| Model Name      | Num Params | Acc@1  | Acc@5  | Input size | Weights |
-|-----------------|------------|--------|--------|------------|---------|
-| EfficientNet-b0 | 5.2M       | 76.732 | 93.216 | 224x224x3  | ✗       |
-| EfficientNet-b1 | 7.8M       | 78.700 | 94.372 | 240x240x3  | ✔       |
-| EfficientNet-b2 | 9.1M       |        |        | 260x260x3  | ✗       |
-| EfficientNet-b3 | 12.2M      |        |        | 300x300x3  | ✗       |
-| EfficientNet-b4 | 19.3M      |        |        | 380x380x3  | ✗       |
-| EfficientNet-b5 | 30.3M      |        |        | 456x456x3  | ✗       |
-| EfficientNet-b6 | 43M        |        |        | 528x528x3  | ✗       |
-| EfficientNet-b7 | 66.3M      |        |        | 600x600x3  | ✗       |
+# Getting Started
+Follow these instructions to get the application running locally.
 
+Prerequisites
+- Python 3.6+
+- Flask
+- PyTorch
+- Pillow
 
-### Dataset
+# Setup
+Clone the Repository:
 
-Specify the IMAGENET data folder in the `main.py` file.
+git clone https://github.com/Crounous/EfficientNet-B0.git
+cd EfficientNet-B0
 
-``` python
-parser.add_argument("--data-path", default="../../Projects/Datasets/IMAGENET/", type=str, help="dataset path")
-```
+Install Dependencies:
+It's highly recommended to use a virtual environment.
 
-IMAGENET folder structure:
+# Create and activate a virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 
-```
-├── IMAGENET 
-    ├── train
-         ├── [class_id1]/xxx.{jpg,png,jpeg}
-         ├── [class_id2]/xxy.{jpg,png,jpeg}
-         ├── [class_id3]/xxz.{jpg,png,jpeg}
-          ....
-    ├── val
-         ├── [class_id1]/xxx1.{jpg,png,jpeg}
-         ├── [class_id2]/xxy2.{jpg,png,jpeg}
-         ├── [class_id3]/xxz3.{jpg,png,jpeg}
-```
+# Install the required packages
+pip install flask torch torchvision Pillow
+(or you can simply run pip install -r requirements.txt)
 
-#### Augmentation:
+Place Required Files:
+Make sure the following files are in the correct locations within your project directory:
 
-Random Augmentation [`RandomAugment`](efficientnet/utils/augment.py) in `efficientnet/utils/augment.py` is used as an
-augmentation. To check the random augmentation run the `augment.py` file. Interpolation mode for Random Augmentation
-randomly chosen from `BILINEAR` and `BICUBIC`. For resizing the input image `BICUBIC` interpolation is used.
+- Trained Model: The model weights must be located at weights/best.ckpt.
 
-### Train
+- Class Names: A text file containing the names of your classes (one per line) must be at class_names.txt. The order should correspond to the output indices of the model.
 
-Distributed Data Parallel - `bash main.sh`
-`main.sh`:
+- HTML Template: The web page template must be at templates/index.html.
 
-```
-torchrun --nproc_per_node=$num_gpu main.py --epochs 450 --batch-size 320 --model-ema --lr 0.048 --lr-warmup-init 1e-6 --weight-decay 1e-5 --model-ema-decay 0.9999 --interpolation bicubic --random-erase 0.2
-```
+# Running the Application
+Once the setup is complete, you can start the Flask server by running the app.py script:
 
-Data Parallel (without DDP, not recommended) - `python main.py`
+python app.py
 
-To resume the training add `--resume @path_to_checkpoint` to `main.sh`, e.g: `--resume weights/last.ckpt`
+The application will be available at http://127.0.0.1:5000 in your web browser.
 
-### Evaluation
-
-```
-torchrun --nproc_per_node=$num_gpu main.py --epochs 450 --batch-size 320 --model-ema --lr 0.048 --lr-warmup-init 1e-6 --weight-decay 1e-5 --model-ema-decay 0.9999 --interpolation bicubic --random-erase 0.2 --resume weights/last.ckpt --test
-```
-or
-```
-python main.py --test
-```
+# How to Use
+1. Open your web browser and navigate to http://127.0.0.1:5000.
+2. Click the "Choose File" button to select an image from your computer.
+3. The application will display the predicted class and the confidence level of the prediction.
