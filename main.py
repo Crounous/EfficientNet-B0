@@ -10,14 +10,7 @@ from torchvision.transforms import transforms
 from torchvision.transforms.functional import InterpolationMode
 
 from efficientnet.models import (
-    efficientnet_b0,
-    efficientnet_b1,
-    efficientnet_b2,
-    efficientnet_b3,
-    efficientnet_b4,
-    efficientnet_b5,
-    efficientnet_b6,
-    efficientnet_b7,
+    efficientnet_b0
 )
 from efficientnet import utils
 from efficientnet.loss import CrossEntropyLoss
@@ -31,12 +24,12 @@ def get_args_parser():
 
     parser = argparse.ArgumentParser(description="PyTorch EfficientNet Training")
 
-    parser.add_argument("--data-path", default="../../Projects/Datasets/IMAGENET/", type=str, help="dataset path")
+    parser.add_argument("--data-path", default="C:/Users/Luigi/Desktop/code/Thesis/efficientnet-pytorch/assets", type=str, help="dataset path")
 
     parser.add_argument("--device", default="cuda", type=str, help="device (Use cuda or cpu Default: cuda)")
-    parser.add_argument("--batch-size", default=64, type=int, help="images per GPU, total @num_gpu x batch_size")
-    parser.add_argument("--epochs", default=450, type=int, help="number of total epochs to run")
-    parser.add_argument("--workers", default=16, type=int, help="number of data loading workers (default: 16)")
+    parser.add_argument("--batch-size", default=8, type=int, help="images per GPU, total @num_gpu x batch_size")
+    parser.add_argument("--epochs", default=10, type=int, help="number of total epochs to run")
+    parser.add_argument("--workers", default=8, type=int, help="number of data loading workers (default: 16)")
 
     # Optimizer params
     parser.add_argument("--lr", default=0.048, type=float, help="initial learning rate")
@@ -269,7 +262,7 @@ def main(args):
                                               )
 
     print("Creating model")
-    model = efficientnet_b1()
+    model = efficientnet_b0()
     model.to(device)
 
     if args.distributed and args.sync_bn:
@@ -327,13 +320,19 @@ def main(args):
         for epoch in range(args.start_epoch, args.epochs):
             if args.distributed:
                 train_sampler.set_epoch(epoch)
+            
             train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args, model_ema, scaler)
             scheduler.step(epoch)
+            _, val_acc1, _ = validate(model, criterion, test_loader, device=device, args=args)
+            acc1_for_checkpointing = val_acc1
 
-            validate(model, criterion, test_loader, device=device, args=args)
-            loss, acc1, acc5 = validate(model_ema.model, criterion, test_loader, device=device, args=args,
-                                        log_suffix="EMA")
+            # NOW, we safely check if the EMA model exists
+            if model_ema:
+                # If it exists, we validate it and use ITS accuracy instead
+                _, ema_acc1, _ = validate(model_ema.model, criterion, test_loader, device=device, args=args, log_suffix="EMA")
+                acc1_for_checkpointing = ema_acc1
 
+            # All the logic for creating and saving checkpoints is now unified and safe
             checkpoint = {
                 "model": model.module.state_dict(),
                 "optimizer": optimizer.state_dict(),
@@ -341,26 +340,27 @@ def main(args):
                 "epoch": epoch,
                 "args": args,
             }
-            if model_ema:
-                checkpoint["model_ema"] = model_ema.model.state_dict()
             if scaler:
                 checkpoint["scaler"] = scaler.state_dict()
-
-            state_ema = {
-                'model': copy.deepcopy(model_ema.model).half()
-            }
-
+            
+            if model_ema:
+                checkpoint["model_ema"] = model_ema.model.state_dict()
+            
             torch.save(checkpoint, 'weights/last.ckpt')
-            torch.save(state_ema, 'weights/last.pth')
-            if acc1 > best:
+            
+            if acc1_for_checkpointing > best:
+                best = acc1_for_checkpointing
                 torch.save(checkpoint, 'weights/best.ckpt')
-                torch.save(state_ema, 'weights/best.pth')
-            best = max(acc1, best)
+            
+            if model_ema:
+                state_ema = {'model': copy.deepcopy(model_ema.model).half()}
+                torch.save(state_ema, 'weights/last.pth')
+                if acc1_for_checkpointing == best:
+                    torch.save(state_ema, 'weights/best.pth')
 
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         print(f"Training time: {total_time_str}")
-
 
 if __name__ == "__main__":
     args = get_args_parser().parse_args()

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diabetic Retinopathy Classifier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .upload-container {
+            transition: background-color 0.2s ease-in-out;
+        }
+        .loader {
+            border-top-color: #3498db;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen">
+
+    <div class="bg-white rounded-xl shadow-2xl p-8 max-w-lg w-full text-center">
+        <h1 class="text-4xl font-bold mb-4 text-gray-700">DR Severity Classifier</h1>
+        <p class="text-gray-500 mb-8">Upload a retinal image to classify the severity of Diabetic Retinopathy.</p>
+
+        <!-- Image Upload Area -->
+        <div id="upload-container" class="upload-container border-4 border-dashed border-gray-300 rounded-lg p-10 cursor-pointer hover:bg-gray-50 hover:border-blue-400">
+            <input type="file" id="image-upload" class="hidden" accept="image/*">
+            <div id="upload-prompt">
+                <svg class="mx-auto h-16 w-16 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <p class="mt-4 text-lg text-gray-600">
+                    <span class="font-semibold text-blue-600">Click to upload</span> or drag and drop
+                </p>
+                <p class="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 10MB</p>
+            </div>
+        </div>
+
+        <!-- Image Preview -->
+        <div id="image-preview-container" class="mt-8 hidden">
+            <img id="image-preview" src="#" alt="Image preview" class="max-w-full mx-auto rounded-lg shadow-md"/>
+        </div>
+
+        <!-- Classify Button -->
+        <button id="classify-btn" class="mt-8 w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-transform transform hover:scale-105 hidden">
+            Classify Image
+        </button>
+
+        <!-- --- MODIFIED RESULTS SECTION --- -->
+        <div id="results-container" class="mt-8 text-left hidden">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700 text-center">Prediction Result:</h2>
+            <div id="loader" class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-24 w-24 mx-auto hidden"></div>
+            <div id="result-display" class="bg-gray-100 p-6 rounded-lg text-center hidden">
+                <!-- Result will be injected here -->
+            </div>
+        </div>
+        <!-- --- END OF MODIFICATION --- -->
+    </div>
+
+    <script>
+        const uploadContainer = document.getElementById('upload-container');
+        const imageUpload = document.getElementById('image-upload');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const classifyBtn = document.getElementById('classify-btn');
+        const resultsContainer = document.getElementById('results-container');
+        const loader = document.getElementById('loader');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const resultDisplay = document.getElementById('result-display'); // Get the new result display div
+
+        // Handle click on upload area
+        uploadContainer.addEventListener('click', () => imageUpload.click());
+
+        // Handle drag and drop
+        uploadContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadContainer.classList.add('bg-blue-50');
+        });
+
+        uploadContainer.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadContainer.classList.remove('bg-blue-50');
+        });
+
+        uploadContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadContainer.classList.remove('bg-blue-50');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                imageUpload.files = files;
+                handleFileSelect({ target: { files: files } });
+            }
+        });
+
+        // Handle file selection
+        imageUpload.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    imagePreviewContainer.classList.remove('hidden');
+                    classifyBtn.classList.remove('hidden');
+                    uploadPrompt.classList.add('hidden');
+                    resultsContainer.classList.add('hidden');
+                    resultDisplay.classList.add('hidden');
+                    resultDisplay.innerHTML = '';
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Handle classify button click
+        classifyBtn.addEventListener('click', async () => {
+            const file = imageUpload.files[0];
+            if (!file) {
+                alert("Please select an image first!");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Show loader and results container
+            resultsContainer.classList.remove('hidden');
+            loader.classList.remove('hidden');
+            resultDisplay.classList.add('hidden');
+            resultDisplay.innerHTML = '';
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayResult(data);
+
+            } catch (error) {
+                console.error("Error during prediction:", error);
+                resultDisplay.innerHTML = `<p class="text-red-500">An error occurred. Please check the console.</p>`;
+                resultDisplay.classList.remove('hidden');
+            } finally {
+                loader.classList.add('hidden');
+            }
+        });
+
+        // --- MODIFIED DISPLAY FUNCTION ---
+        function displayResult(data) {
+            resultDisplay.classList.remove('hidden');
+            if (data.error) {
+                resultDisplay.innerHTML = `<p class="text-red-500">${data.error}</p>`;
+                return;
+            }
+            
+            resultDisplay.innerHTML = `
+                <p class="text-3xl font-bold text-blue-600">${data.class}</p>
+                <p class="text-xl text-gray-600 mt-2">Confidence: <span class="font-semibold">${data.confidence}</span></p>
+            `;
+        }
+    </script>
+
+</body>
+</html>
