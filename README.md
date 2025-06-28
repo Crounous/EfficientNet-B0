@@ -36,12 +36,6 @@ Follow these instructions to get the application running locally.
     pip install flask torch torchvision Pillow
     (Or simply run "pip install -r requirements.txt")
      ```
-3.  **Place Required Files:**
-    Make sure the following files are in the correct locations within your project directory:
-    * **Trained Model:** The model weights must be located at `weights/best.ckpt`.
-    * **Class Names:** A text file containing the names of your classes (one per line) must be at `class_names.txt`. The order should correspond to the output indices of the model.
-    * **HTML Template:** The web page template must be at `templates/index.html`.
-
 ## Running the Application
 
 Once the setup is complete, you can start the Flask server by running the `app.py` script:
