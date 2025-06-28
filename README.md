@@ -34,7 +34,7 @@ Follow these instructions to get the application running locally.
 
     # Install the required packages
     pip install flask torch torchvision Pillow
-    *(Or simply run pip install -r requirements.txt)*
+    (Or simply run "pip install -r requirements.txt")
      ```
 3.  **Place Required Files:**
     Make sure the following files are in the correct locations within your project directory:
