@@ -13,7 +13,7 @@ NUM_CLASSES = 5
 
 # Load the trained model
 try:
-    state_dict_ema = torch.load('weights/best.ckpt', map_location='cpu')
+    state_dict_ema = torch.load('weights/best.ckpt', map_location='cpu', weights_only=False)
     
     model = efficientnet_b0(num_classes=NUM_CLASSES)
     
