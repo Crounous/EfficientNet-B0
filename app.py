@@ -1,26 +1,11 @@
 import io
-import os
-import requests
+import json
 from PIL import Image
 from flask import Flask, request, jsonify, render_template
 import torch
 from torchvision import transforms
 from efficientnet.models import efficientnet_b0
 
-
-MODEL_URL = "https://github.com/Crounous/EfficientNet-B0/releases/download/model/best.ckpt" 
-WEIGHTS_DIR = "weights"
-MODEL_PATH = os.path.join(WEIGHTS_DIR, "best.ckpt")
-
-if not os.path.exists(MODEL_PATH):
-    print("Model not found, downloading...")
-    os.makedirs(WEIGHTS_DIR, exist_ok=True)
-    response = requests.get(MODEL_URL, stream=True)
-    response.raise_for_status() # Raise an exception for bad status codes
-    with open(MODEL_PATH, "wb") as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            f.write(chunk)
-    print("Model downloaded successfully.")
 # --- Initialization ---
 app = Flask(__name__)
 
@@ -28,7 +13,7 @@ NUM_CLASSES = 5
 
 # Load the trained model
 try:
-    state_dict_ema = torch.load('weights/best.ckpt', map_location='cpu', weights_only=False)
+    state_dict_ema = torch.load('weights/best.ckpt', map_location='cpu')
     
     model = efficientnet_b0(num_classes=NUM_CLASSES)
     
