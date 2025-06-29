@@ -8,7 +8,7 @@ from torchvision import transforms
 from efficientnet.models import efficientnet_b0
 
 
-MODEL_URL = "https://drive.google.com/file/d/1qgX-tJjrfNtz2AEb0FLO4SMdN9r33IC0" 
+MODEL_URL = "https://github.com/Crounous/EfficientNet-B0/releases/download/model/best.ckpt" 
 WEIGHTS_DIR = "weights"
 MODEL_PATH = os.path.join(WEIGHTS_DIR, "best.ckpt")
 
