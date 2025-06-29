@@ -109,39 +109,36 @@ def train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, ar
             lrl = [param_group['lr'] for param_group in optimizer.param_groups]
             lr = sum(lrl) / len(lrl)
 
-            acc1, acc5 = utils.accuracy(output, target, topk=(1, 5))
+            acc1, = utils.accuracy(output, target, topk=(1,))
 
             if args.distributed:
                 reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
                 acc1 = utils.reduce_tensor(acc1, args.world_size)
-                acc5 = utils.reduce_tensor(acc5, args.world_size)
             else:
                 reduced_loss = loss.data
 
             loss_logger.update(reduced_loss.item(), n=batch_size)
             top1_logger.update(acc1.item(), n=batch_size)
-            top5_logger.update(acc5.item(), n=batch_size)
 
             if args.local_rank == 0:
                 print('Train: {} [{:>4d}/{} ({:>3.0f}%)]  '
                       'Loss: {loss.val:>6.4f} ({loss.avg:>6.4f})  '
                       'Acc@1: {acc1.val:>6.4f} ({acc1.avg:>6.4f}) '
-                      'Acc@5: {acc5.val:>6.4f} ({acc5.avg:>6.4f}) '
                       'LR: {lr:.3e}  '
                       'Data: {data_time.val:.3f} ({data_time.avg:.3f})'.format(epoch, batch_idx, len(train_loader),
                                                                                100. * batch_idx / last_idx,
                                                                                loss=loss_logger,
                                                                                acc1=top1_logger,
-                                                                               acc5=top5_logger,
                                                                                lr=lr,
                                                                                data_time=time_logger))
+                
+    return top1_logger.avg
 
 
 def validate(model, criterion, test_loader, device, args, log_suffix=""):
     time_logger = utils.AverageMeter()  # img/s
     loss_logger = utils.AverageMeter()  # loss
     top1_logger = utils.AverageMeter()  # top1 accuracy
-    top5_logger = utils.AverageMeter()  # top5 accuracy
 
     model.eval()
 
@@ -158,12 +155,11 @@ def validate(model, criterion, test_loader, device, args, log_suffix=""):
             output = model(image)
 
             loss = criterion(output, target)
-            acc1, acc5 = utils.accuracy(output, target, topk=(1, 5))
+            acc1, = utils.accuracy(output, target, topk=(1,))
 
             if args.distributed:
                 loss = utils.reduce_tensor(loss.data, args.world_size)
                 acc1 = utils.reduce_tensor(acc1, args.world_size)
-                acc5 = utils.reduce_tensor(acc5, args.world_size)
             else:
                 loss = loss.data
 
@@ -171,7 +167,6 @@ def validate(model, criterion, test_loader, device, args, log_suffix=""):
 
             loss_logger.update(loss.item(), n=batch_size)
             top1_logger.update(acc1.item(), n=batch_size)
-            top5_logger.update(acc5.item(), n=batch_size)
 
             time_logger.update(time.time() - end)
             end = time.time()
@@ -179,16 +174,13 @@ def validate(model, criterion, test_loader, device, args, log_suffix=""):
                 print('{0}: [{1:>4d}/{2}]  '
                       'Time: {batch_time.val:>4.3f} ({batch_time.avg:>4.3f})  '
                       'Loss: {loss.val:>4.4f} ({loss.avg:>6.4f})  '
-                      'Acc@1: {top1.val:>4.4f} ({top1.avg:>4.4f})  '
-                      'Acc@5: {top5.val:>4.4f} ({top5.avg:>4.4f})'.format(header, batch_idx, last_idx,
+                      'Acc@1: {top1.val:>4.4f} ({top1.avg:>4.4f})  '.format(header, batch_idx, last_idx,
                                                                           batch_time=time_logger,
                                                                           loss=loss_logger,
-                                                                          top1=top1_logger,
-                                                                          top5=top5_logger))
+                                                                          top1=top1_logger))
 
-    print(f"{header} Loss: {loss_logger.avg:.3f} Acc@1 {top1_logger.avg:.3f} Acc@5 {top5_logger.avg:.3f}")
-    return loss_logger.avg, top1_logger.avg, top5_logger.avg
-
+    print(f"{header} Loss: {loss_logger.avg:.3f} Acc@1 {top1_logger.avg:.3f}")
+    return loss_logger.avg, top1_logger.avg
 
 def load_data(train_dir, val_dir, args):
     # Data loading code
@@ -262,7 +254,7 @@ def main(args):
                                               )
 
     print("Creating model")
-    model = efficientnet_b0()
+    model = efficientnet_b0(num_classes=5)
     model.to(device)
 
     if args.distributed and args.sync_bn:
@@ -309,7 +301,7 @@ def main(args):
         print("Start testing")
         start_time = time.time()
         model_ema = torch.load('weights/last.pth', 'cuda')['model'].float()
-        _, acc1, acc5 = validate(model_ema, criterion, test_loader, device=device, args=args, log_suffix='EMA')
+        _, acc1, = validate(model_ema, criterion, test_loader, device=device, args=args, log_suffix='EMA')
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         print(f"Testing time: {total_time_str}")
@@ -317,20 +309,24 @@ def main(args):
         print("Start training")
         start_time = time.time()
         best = 0
+        all_train_accuracies = []
+        all_val_accuracies = []
         for epoch in range(args.start_epoch, args.epochs):
             if args.distributed:
                 train_sampler.set_epoch(epoch)
             
-            train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args, model_ema, scaler)
+            train_acc1 = train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args, model_ema, scaler)
             scheduler.step(epoch)
-            _, val_acc1, _ = validate(model, criterion, test_loader, device=device, args=args)
+            _, val_acc1 = validate(model, criterion, test_loader, device=device, args=args)
             acc1_for_checkpointing = val_acc1
 
             # NOW, we safely check if the EMA model exists
             if model_ema:
                 # If it exists, we validate it and use ITS accuracy instead
-                _, ema_acc1, _ = validate(model_ema.model, criterion, test_loader, device=device, args=args, log_suffix="EMA")
+                _, ema_acc1 = validate(model_ema.model, criterion, test_loader, device=device, args=args, log_suffix="EMA")
                 acc1_for_checkpointing = ema_acc1
+            all_train_accuracies.append(train_acc1)
+            all_val_accuracies.append(acc1_for_checkpointing)
 
             # All the logic for creating and saving checkpoints is now unified and safe
             checkpoint = {
@@ -361,6 +357,14 @@ def main(args):
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         print(f"Training time: {total_time_str}")
+        
+    if all_train_accuracies and all_val_accuracies:
+        avg_train_acc = sum(all_train_accuracies) / len(all_train_accuracies)
+        avg_val_acc = sum(all_val_accuracies) / len(all_val_accuracies)
+        print("\n--- Training Summary ---")
+        print(f"Average Training Acc@1 (over {args.epochs} epochs): {avg_train_acc:.4f}")
+        print(f"Average Validation Acc@1 (over {args.epochs} epochs): {avg_val_acc:.4f}")
+        print("------------------------")
 
 if __name__ == "__main__":
     args = get_args_parser().parse_args()
