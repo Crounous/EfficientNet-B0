@@ -1,11 +1,26 @@
 import io
-import json
+import os
+import requests
 from PIL import Image
 from flask import Flask, request, jsonify, render_template
 import torch
 from torchvision import transforms
 from efficientnet.models import efficientnet_b0
 
+
+MODEL_URL = "https://drive.google.com/file/d/1qgX-tJjrfNtz2AEb0FLO4SMdN9r33IC0/view?usp=drive_link" # <-- PASTE YOUR LINK HERE
+WEIGHTS_DIR = "weights"
+MODEL_PATH = os.path.join(WEIGHTS_DIR, "best.ckpt")
+
+if not os.path.exists(MODEL_PATH):
+    print("Model not found, downloading...")
+    os.makedirs(WEIGHTS_DIR, exist_ok=True)
+    response = requests.get(MODEL_URL, stream=True)
+    response.raise_for_status() # Raise an exception for bad status codes
+    with open(MODEL_PATH, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+    print("Model downloaded successfully.")
 # --- Initialization ---
 app = Flask(__name__)
 
